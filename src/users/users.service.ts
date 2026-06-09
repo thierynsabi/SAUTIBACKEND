@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class UsersService {
@@ -18,7 +19,16 @@ export class UsersService {
       throw new NotFoundException('Ward not found');
     }
 
-    return this.prisma.user.create({ data: dto });
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+    return this.prisma.user.create({
+      data: {
+        fullName: dto.fullName,
+        phoneNumber: dto.phoneNumber,
+        passwordHash,
+        role: dto.role,
+        wardId: dto.wardId,
+      },
+    });
   }
 
   async findAll() {

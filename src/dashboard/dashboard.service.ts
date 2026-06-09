@@ -8,31 +8,34 @@ export class DashboardService {
   async getStatistics(wardId?: string) {
     const whereFilter = wardId ? { wardId } : {};
 
-    const [totalComplaints, pendingComplaints, inProgressComplaints, resolvedComplaints, totalAnnouncements, totalPromises] =
+    const [totalIssues, pendingIssues, inProgressIssues, resolvedIssues, totalAnnouncements, totalPromises, totalUsers] =
       await Promise.all([
-        this.prisma.complaint.count({ where: whereFilter }),
-        this.prisma.complaint.count({ where: { ...whereFilter, status: 'PENDING' } }),
-        this.prisma.complaint.count({ where: { ...whereFilter, status: 'IN_PROGRESS' } }),
-        this.prisma.complaint.count({ where: { ...whereFilter, status: 'RESOLVED' } }),
+        this.prisma.issue.count({ where: whereFilter }),
+        this.prisma.issue.count({ where: { ...whereFilter, status: 'PENDING' } }),
+        this.prisma.issue.count({ where: { ...whereFilter, status: 'IN_PROGRESS' } }),
+        this.prisma.issue.count({ where: { ...whereFilter, status: 'RESOLVED' } }),
         this.prisma.announcement.count(),
         this.prisma.promise.count(),
+        this.prisma.user.count({ where: { role: 'CITIZEN' } }),
       ]);
 
     return {
-      totalComplaints,
-      pendingComplaints,
-      inProgressComplaints,
-      resolvedComplaints,
+      totalIssues,
+      pendingIssues,
+      inProgressIssues,
+      resolvedIssues,
       totalAnnouncements,
       totalPromises,
-      resolutionRate: totalComplaints > 0 ? Math.round((resolvedComplaints / totalComplaints) * 100) : 0,
+      totalUsers,
+      resolutionRate: totalIssues > 0 ? Math.round((resolvedIssues / totalIssues) * 100) : 0,
     };
   }
 
   async getWardAnalytics() {
     const wards = await this.prisma.ward.findMany({
       include: {
-        _count: { select: { complaints: true, users: true } },
+        constituency: { include: { district: { include: { region: true } } } },
+        _count: { select: { issues: true, users: true } },
       },
       orderBy: { name: 'asc' },
     });
@@ -40,41 +43,43 @@ export class DashboardService {
     return wards.map((ward) => ({
       id: ward.id,
       name: ward.name,
-      constituency: ward.constituency,
-      totalComplaints: ward._count.complaints,
+      constituency: ward.constituency.name,
+      district: ward.constituency.district.name,
+      region: ward.constituency.district.region.name,
+      totalIssues: ward._count.issues,
       totalUsers: ward._count.users,
     }));
   }
 
-  async getComplaintTrends() {
+  async getIssueTrends() {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const complaints = await this.prisma.complaint.findMany({
+    const issues = await this.prisma.issue.findMany({
       where: { createdAt: { gte: thirtyDaysAgo } },
       orderBy: { createdAt: 'asc' },
       select: { createdAt: true, status: true, category: true },
     });
 
-    const trendsByDate = complaints.reduce(
-      (acc, complaint) => {
-        const date = complaint.createdAt.toISOString().split('T')[0];
+    const trendsByDate = issues.reduce(
+      (acc, issue) => {
+        const date = issue.createdAt.toISOString().split('T')[0];
         if (!acc[date]) {
           acc[date] = { date, total: 0, PENDING: 0, IN_PROGRESS: 0, RESOLVED: 0 };
         }
         acc[date].total++;
-        acc[date][complaint.status]++;
+        acc[date][issue.status]++;
         return acc;
       },
       {} as Record<string, any>,
     );
 
-    const categoryBreakdown = complaints.reduce(
-      (acc, complaint) => {
-        if (!acc[complaint.category]) {
-          acc[complaint.category] = { category: complaint.category, count: 0 };
+    const categoryBreakdown = issues.reduce(
+      (acc, issue) => {
+        if (!acc[issue.category]) {
+          acc[issue.category] = { category: issue.category, count: 0 };
         }
-        acc[complaint.category].count++;
+        acc[issue.category].count++;
         return acc;
       },
       {} as Record<string, any>,
@@ -86,12 +91,24 @@ export class DashboardService {
     };
   }
 
-  async getRecentComplaints(limit = 5) {
-    return this.prisma.complaint.findMany({
+  async getRecentIssues(limit = 5) {
+    return this.prisma.issue.findMany({
       take: limit,
       orderBy: { createdAt: 'desc' },
       include: {
         user: { select: { id: true, fullName: true } },
+        ward: { select: { id: true, name: true } },
+        _count: { select: { votes: true, comments: true } },
+      },
+    });
+  }
+
+  async getTopVoted(limit = 10) {
+    return this.prisma.issue.findMany({
+      take: limit,
+      orderBy: { votes: { _count: 'desc' } },
+      include: {
+        _count: { select: { votes: true } },
         ward: { select: { id: true, name: true } },
       },
     });
@@ -118,5 +135,59 @@ export class DashboardService {
         {} as Record<string, any>,
       ),
     };
+  }
+
+  async getIssuesByRegion() {
+    const regions = await this.prisma.region.findMany({
+      include: {
+        districts: {
+          include: {
+            constituencies: {
+              include: {
+                wards: {
+                  include: { _count: { select: { issues: true } } },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return regions.map((region) => ({
+      region: region.name,
+      totalIssues: region.districts.reduce(
+        (sum, d) => sum + d.constituencies.reduce(
+          (s, c) => s + c.wards.reduce((sw, w) => sw + w._count.issues, 0), 0
+        ), 0
+      ),
+    }));
+  }
+
+  async getMonthlyTrends() {
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    const issues = await this.prisma.issue.findMany({
+      where: { createdAt: { gte: sixMonthsAgo } },
+      select: { createdAt: true, status: true },
+    });
+
+    const trends = issues.reduce(
+      (acc, issue) => {
+        const key = `${issue.createdAt.getFullYear()}-${String(issue.createdAt.getMonth() + 1).padStart(2, '0')}`;
+        if (!acc[key]) {
+          acc[key] = { month: key, total: 0, resolved: 0, pending: 0, inProgress: 0 };
+        }
+        acc[key].total++;
+        if (issue.status === 'RESOLVED') acc[key].resolved++;
+        else if (issue.status === 'PENDING') acc[key].pending++;
+        else if (issue.status === 'IN_PROGRESS') acc[key].inProgress++;
+        return acc;
+      },
+      {} as Record<string, any>,
+    );
+
+    return Object.values(trends).sort((a: any, b: any) => a.month.localeCompare(b.month));
   }
 }

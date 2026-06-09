@@ -13,10 +13,11 @@ enum Role {
   ADMIN
 }
 
-enum ComplaintStatus {
+enum IssueStatus {
   PENDING
   IN_PROGRESS
   RESOLVED
+  REJECTED
 }
 
 enum PromiseStatus {
@@ -25,95 +26,214 @@ enum PromiseStatus {
   COMPLETED
 }
 
-model User {
-  id          String   @id @default(uuid()) @db.Uuid
-  fullName    String   @db.VarChar(255)
-  phoneNumber String   @unique @db.VarChar(20)
-  role        Role     @default(CITIZEN)
-  wardId      String   @db.Uuid
-  isVerified  Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  ward         Ward          @relation(fields: [wardId], references: [id])
-  profile      Profile?
-  complaints   Complaint[]
-  replies      Reply[]
-  announcements Announcement[]
-  refreshToken RefreshToken?
+enum NotificationType {
+  ISSUE_SUBMITTED
+  ISSUE_ASSIGNED
+  STATUS_CHANGED
+  MP_RESPONSE
+  ISSUE_RESOLVED
+  COMMENT_ADDED
 }
 
-model RefreshToken {
+model Region {
   id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @unique @db.Uuid
-  token     String   @db.Text
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model Otp {
-  id        String   @id @default(uuid()) @db.Uuid
-  phoneNumber String @db.VarChar(20)
-  code      String   @db.VarChar(10)
-  verified  Boolean  @default(false)
-  expiresAt DateTime
+  name      String   @unique @db.VarChar(255)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([phoneNumber, code])
+  districts District[]
 }
 
-model Profile {
+model District {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(255)
+  regionId  String   @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  region        Region         @relation(fields: [regionId], references: [id])
+  constituencies Constituency[]
+
+  @@unique([name, regionId])
+}
+
+model Constituency {
   id         String   @id @default(uuid()) @db.Uuid
-  userId     String   @unique @db.Uuid
-  gender     String?  @db.VarChar(10)
-  dateOfBirth DateTime?
-  address    String?  @db.Text
-  bio        String?  @db.Text
+  name       String   @db.VarChar(255)
+  districtId String   @db.Uuid
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  district    District    @relation(fields: [districtId], references: [id])
+  wards       Ward[]
+  mpAccounts  MpAccount[]
+
+  @@unique([name, districtId])
 }
 
 model Ward {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String   @db.VarChar(255)
+  constituencyId String   @db.Uuid
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  constituency Constituency @relation(fields: [constituencyId], references: [id])
+  users        User[]
+  issues       Issue[]
+
+  @@unique([name, constituencyId])
+}
+
+model User {
+  id            String   @id @default(uuid()) @db.Uuid
+  fullName      String?  @db.VarChar(255)
+  phoneNumber   String?  @unique @db.VarChar(20)
+  passwordHash  String?  @db.Text
+  role          Role     @default(CITIZEN)
+  wardId        String?  @db.Uuid
+  isAnonymous   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  ward            Ward?              @relation(fields: [wardId], references: [id])
+  profile         Profile?
+  issues          Issue[]
+  assignedIssues  Issue[]            @relation("AssignedMP")
+  comments        IssueComment[]
+  votes           IssueVote[]
+  mpAccount       MpAccount?
+  notifications   Notification[]
+  auditLogs       AuditLog[]
+  statusChanges   IssueStatusHistory[]
+  announcements   Announcement[]
+}
+
+model MpAccount {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @unique @db.Uuid
+  constituencyId String   @db.Uuid
+  bio            String?  @db.Text
+  photoUrl       String?  @db.Text
+  phone          String?  @db.VarChar(20)
+  email          String?  @db.VarChar(255)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  constituency Constituency @relation(fields: [constituencyId], references: [id])
+}
+
+model Issue {
   id            String      @id @default(uuid()) @db.Uuid
-  name          String      @unique @db.VarChar(255)
-  constituency  String      @default("Mbeya Town") @db.VarChar(255)
+  title         String      @db.VarChar(255)
+  description   String      @db.Text
+  category      String      @db.VarChar(100)
+  status        IssueStatus @default(PENDING)
+  isAnonymous   Boolean     @default(false)
+  userId        String?     @db.Uuid
+  wardId        String      @db.Uuid
+  assignedToId  String?     @db.Uuid
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
-  users       User[]
-  complaints  Complaint[]
+  user          User?              @relation(fields: [userId], references: [id])
+  ward          Ward               @relation(fields: [wardId], references: [id])
+  assignedTo    User?              @relation("AssignedMP", fields: [assignedToId], references: [id])
+  comments      IssueComment[]
+  votes         IssueVote[]
+  media         IssueMedia[]
+  statusHistory IssueStatusHistory[]
+
+  @@index([status])
+  @@index([category])
+  @@index([wardId])
+  @@index([userId])
+  @@index([assignedToId])
 }
 
-model Complaint {
-  id          String          @id @default(uuid()) @db.Uuid
-  title       String          @db.VarChar(255)
-  description String          @db.Text
-  category    String          @db.VarChar(100)
-  status      ComplaintStatus @default(PENDING)
-  userId      String          @db.Uuid
-  wardId      String          @db.Uuid
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+model IssueComment {
+  id        String   @id @default(uuid()) @db.Uuid
+  issueId   String   @db.Uuid
+  userId    String   @db.Uuid
+  parentId  String?  @db.Uuid
+  message   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user    User    @relation(fields: [userId], references: [id])
-  ward    Ward    @relation(fields: [wardId], references: [id])
-  replies Reply[]
+  issue    Issue          @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  user     User           @relation(fields: [userId], references: [id])
+  parent   IssueComment?  @relation("CommentReply", fields: [parentId], references: [id])
+  replies  IssueComment[] @relation("CommentReply")
+
+  @@index([issueId])
 }
 
-model Reply {
+model IssueVote {
+  id        String   @id @default(uuid()) @db.Uuid
+  issueId   String   @db.Uuid
+  userId    String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@unique([issueId, userId])
+}
+
+model IssueMedia {
+  id        String   @id @default(uuid()) @db.Uuid
+  issueId   String   @db.Uuid
+  url       String   @db.Text
+  type      String   @db.VarChar(50)
+  createdAt DateTime @default(now())
+
+  issue Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@index([issueId])
+}
+
+model IssueStatusHistory {
+  id          String      @id @default(uuid()) @db.Uuid
+  issueId     String      @db.Uuid
+  oldStatus   IssueStatus
+  newStatus   IssueStatus
+  changedById String      @db.Uuid
+  comment     String?     @db.Text
+  createdAt   DateTime    @default(now())
+
+  issue     Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  changedBy User  @relation(fields: [changedById], references: [id])
+
+  @@index([issueId])
+}
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @db.Uuid
+  type      NotificationType
+  title     String           @db.VarChar(255)
+  body      String           @db.Text
+  data      Json?            @db.JsonB
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+}
+
+model Profile {
   id          String   @id @default(uuid()) @db.Uuid
-  complaintId String   @db.Uuid
-  senderId    String   @db.Uuid
-  message     String   @db.Text
+  userId      String   @unique @db.Uuid
+  gender      String?  @db.VarChar(10)
+  dateOfBirth DateTime?
+  address     String?  @db.Text
+  bio         String?  @db.Text
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
-  sender    User      @relation(fields: [senderId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Announcement {
@@ -136,4 +256,22 @@ model Promise {
   status             PromiseStatus @default(NOT_STARTED)
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @db.Uuid
+  action     String   @db.VarChar(100)
+  entityType String   @db.VarChar(100)
+  entityId   String?  @db.Uuid
+  oldValue   Json?    @db.JsonB
+  newValue   Json?    @db.JsonB
+  ipAddress  String?  @db.VarChar(45)
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([createdAt])
 }

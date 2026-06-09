@@ -30,25 +30,33 @@ async function bootstrap() {
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Sauti - Citizen Engagement Platform')
-    .setDescription('API for Mbeya Town citizen engagement platform. Citizens can submit complaints, suggestions, and track MP promises.')
-    .setVersion('1.0')
+    .setDescription('API for Tanzanian citizen engagement platform connecting citizens to their MPs.')
+    .setVersion('2.0')
     .addBearerAuth()
-    .addTag('Authentication', 'Phone OTP based authentication')
+    .addTag('Authentication', 'Phone + password authentication')
     .addTag('Users', 'User management (Admin)')
     .addTag('Profiles', 'User profiles')
-    .addTag('Wards', 'Mbeya Town wards')
-    .addTag('Complaints', 'Citizen complaint management')
-    .addTag('Replies', 'Complaint replies')
+    .addTag('Regions', 'Tanzania regions')
+    .addTag('Districts', 'Districts within regions')
+    .addTag('Constituencies', 'Constituencies within districts')
+    .addTag('Wards', 'Wards within constituencies')
+    .addTag('Issues', 'Citizen issue reports')
+    .addTag('Comments', 'Issue comments and discussions')
+    .addTag('Votes', 'Issue voting system')
+    .addTag('Media', 'Issue media attachments')
+    .addTag('MP Accounts', 'MP profile and constituency management')
+    .addTag('Notifications', 'User notifications')
     .addTag('Announcements', 'MP announcements')
     .addTag('Promises', 'MP promises tracker')
     .addTag('Dashboard', 'Analytics and statistics')
+    .addTag('Audit Logs', 'System audit trail (Admin)')
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('docs', app, document);
 
   await app.listen(port);
-  Logger.log(`Sauti API running on http://localhost:${port}/${prefix}`, 'Bootstrap');
+  Logger.log(`Sauti API v2 running on http://localhost:${port}/${prefix}`, 'Bootstrap');
   Logger.log(`Swagger docs at http://localhost:${port}/docs`, 'Bootstrap');
 }
 bootstrap();

@@ -1,9 +1,7 @@
 import { Controller, Post, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { RequestOtpDto } from './dto/request-otp.dto';
-import { VerifyOtpDto } from './dto/verify-otp.dto';
-import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
@@ -12,46 +10,32 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  @Post('request-otp')
+  @Post('login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Request OTP for phone number verification' })
-  async requestOtp(@Body() dto: RequestOtpDto) {
-    return this.authService.requestOtp(dto.phoneNumber);
-  }
-
-  @Post('verify-otp')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Verify OTP and receive JWT tokens' })
-  async verifyOtp(@Body() dto: VerifyOtpDto) {
-    return this.authService.verifyOtp(dto.phoneNumber, dto.code);
+  @ApiOperation({ summary: 'Login with phone number and password' })
+  async login(@Body() dto: LoginDto) {
+    return this.authService.login(dto.phoneNumber, dto.password);
   }
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Register a new user (after OTP verification)' })
+  @ApiOperation({ summary: 'Register a new user' })
   async register(
     @Body('fullName') fullName: string,
     @Body('phoneNumber') phoneNumber: string,
+    @Body('password') password: string,
     @Body('role') role: string,
     @Body('wardId') wardId: string,
   ) {
-    return this.authService.register(fullName, phoneNumber, role, wardId);
-  }
-
-  @Post('refresh')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Refresh access token using refresh token' })
-  async refresh(@Body() dto: RefreshTokenDto) {
-    return this.authService.refreshAccessToken(dto.refreshToken);
+    return this.authService.register(fullName, phoneNumber, password, role, wardId);
   }
 
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Logout and invalidate refresh token' })
-  async logout(@CurrentUser('id') userId: string) {
-    await this.authService.logout(userId);
+  @ApiOperation({ summary: 'Logout' })
+  async logout() {
     return { message: 'Logged out successfully' };
   }
 }

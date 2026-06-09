@@ -23,24 +23,31 @@ export class DashboardController {
 
   @Get('ward-analytics')
   @Roles(Role.MP, Role.ADMIN)
-  @ApiOperation({ summary: 'Get complaints analytics by ward' })
+  @ApiOperation({ summary: 'Get issues analytics by ward' })
   async getWardAnalytics() {
     return this.dashboardService.getWardAnalytics();
   }
 
-  @Get('complaint-trends')
+  @Get('issue-trends')
   @Roles(Role.MP, Role.ADMIN)
-  @ApiOperation({ summary: 'Get complaint trends (last 30 days)' })
-  async getComplaintTrends() {
-    return this.dashboardService.getComplaintTrends();
+  @ApiOperation({ summary: 'Get issue trends (last 30 days)' })
+  async getIssueTrends() {
+    return this.dashboardService.getIssueTrends();
   }
 
-  @Get('recent-complaints')
+  @Get('recent-issues')
   @Roles(Role.MP, Role.ADMIN)
-  @ApiOperation({ summary: 'Get recent complaints' })
+  @ApiOperation({ summary: 'Get recent issues' })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  async getRecentComplaints(@Query('limit') limit?: string) {
-    return this.dashboardService.getRecentComplaints(limit ? parseInt(limit, 10) : 5);
+  async getRecentIssues(@Query('limit') limit?: string) {
+    return this.dashboardService.getRecentIssues(limit ? parseInt(limit, 10) : 5);
+  }
+
+  @Get('top-voted')
+  @ApiOperation({ summary: 'Get most supported issues' })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  async getTopVoted(@Query('limit') limit?: string) {
+    return this.dashboardService.getTopVoted(limit ? parseInt(limit, 10) : 10);
   }
 
   @Get('promise-analytics')
@@ -48,5 +55,18 @@ export class DashboardController {
   @ApiOperation({ summary: 'Get promise progress analytics' })
   async getPromiseAnalytics() {
     return this.dashboardService.getPromiseProgressAnalytics();
+  }
+
+  @Get('by-region')
+  @Roles(Role.MP, Role.ADMIN)
+  @ApiOperation({ summary: 'Get issues by region' })
+  async getIssuesByRegion() {
+    return this.dashboardService.getIssuesByRegion();
+  }
+
+  @Get('monthly-trends')
+  @ApiOperation({ summary: 'Get monthly issue trends (last 6 months)' })
+  async getMonthlyTrends() {
+    return this.dashboardService.getMonthlyTrends();
   }
 }

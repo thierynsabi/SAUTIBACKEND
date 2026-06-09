@@ -20,7 +20,7 @@ export class CreateUserDto {
   @IsUUID()
   wardId: string;
 
-  @ApiPropertyOptional({ default: true })
-  @IsOptional()
-  isVerified?: boolean;
+  @ApiProperty({ description: 'User password' })
+  @IsString()
+  password: string;
 }

@@ -1,13 +1,12 @@
-import { IsString, IsOptional } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsUUID } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateWardDto {
-  @ApiProperty({ example: 'Iganjo', description: 'Ward name' })
+  @ApiProperty({ example: 'Iyela', description: 'Ward name' })
   @IsString()
   name: string;
 
-  @ApiPropertyOptional({ example: 'Mbeya Town', default: 'Mbeya Town' })
-  @IsOptional()
-  @IsString()
-  constituency?: string;
+  @ApiProperty({ description: 'Constituency ID' })
+  @IsUUID()
+  constituencyId: string;
 }
