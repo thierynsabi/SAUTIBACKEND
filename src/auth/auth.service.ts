@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
+import { Role } from '../common/enums/role.enum';
 import * as bcrypt from 'bcryptjs';
 
 @Injectable()
@@ -48,15 +49,37 @@ export class AuthService {
       throw new BadRequestException('User with this phone number already exists');
     }
 
-    const ward = await this.prisma.ward.findUnique({ where: { id: wardId } });
-    if (!ward) {
-      throw new BadRequestException('Ward not found');
+    const validRoles = Object.values(Role) as string[];
+    if (!validRoles.includes(role)) {
+      role = Role.CITIZEN;
+    }
+
+    if (wardId) {
+      const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      let ward: { id: string } | null;
+      if (UUID_REGEX.test(wardId)) {
+        ward = await this.prisma.ward.findUnique({ where: { id: wardId } });
+      } else {
+        ward = await this.prisma.ward.findFirst({
+          where: { name: { equals: wardId, mode: 'insensitive' } },
+        });
+      }
+      if (!ward) {
+        throw new BadRequestException('Ward not found');
+      }
+      wardId = ward.id;
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
 
     const user = await this.prisma.user.create({
-      data: { fullName, phoneNumber, passwordHash, role: role as any, wardId },
+      data: {
+        fullName,
+        phoneNumber,
+        passwordHash,
+        role: role as any,
+        ...(wardId ? { wardId } : {}),
+      },
     });
 
     const accessToken = await this.generateAccessToken(user.id, user.phoneNumber!, user.role);
